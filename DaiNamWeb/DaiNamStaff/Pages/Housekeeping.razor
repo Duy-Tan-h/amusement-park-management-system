@@ -1,0 +1,346 @@
+@page "/housekeeping"
+@inject HousekeepingService HkSvc
+@implements IDisposable
+
+<div class="hk-wrap">
+
+    <!-- Sticky header -->
+    <div class="hk-top">
+        <div>
+            <h2 class="hk-h2"><i class="bi bi-house-check-fill"></i> Dọn Phòng</h2>
+            <p class="hk-sub">Phòng chờ vệ sinh hôm nay</p>
+        </div>
+        @if (rooms.Count > 0)
+        {
+            <span class="hk-badge">@rooms.Count phòng</span>
+        }
+    </div>
+
+    <!-- Body -->
+    @if (isLoading)
+    {
+        <div class="hk-center">
+            <div class="hk-spin"></div>
+            <span>Đang tải...</span>
+        </div>
+    }
+    else if (!rooms.Any())
+    {
+        <div class="hk-center">
+            <i class="bi bi-check2-circle hk-ok-icon"></i>
+            <strong>Tất cả phòng đã sạch!</strong>
+            <span class="hk-muted">Không có phòng nào cần dọn</span>
+        </div>
+    }
+    else
+    {
+        <div class="hk-list">
+            @foreach (var room in rooms)
+            {
+                var isProc = processingId == room.IdPhong;
+                <div class="hk-item @(isProc ? "proc" : "")">
+                    <div class="hk-item-left">
+                        <span class="hk-room-id">@room.MaPhong</span>
+                        <span class="hk-room-cat">
+                            <i class="bi bi-door-closed-fill"></i>
+                            @room.LoaiPhong
+                        </span>
+                    </div>
+                    <div class="hk-item-right">
+                        <span class="hk-tag">⏳ Chờ dọn</span>
+                        <button class="hk-done-btn" disabled="@isProc"
+                                @onclick="() => MarkCleaned(room.IdPhong)">
+                            @if (isProc)
+                            {
+                                <span class="hk-mini-spin"></span> <span>Lưu...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-check-circle-fill"></i> <span>Dọn xong</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Toast -->
+    @if (!string.IsNullOrEmpty(toast))
+    {
+        <div class="hk-toast @(toastOk ? "ok" : "err")">
+            <i class="bi @(toastOk ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>
+            @toast
+        </div>
+    }
+</div>
+
+<style>
+    .hk-wrap {
+        /* fills the .staff-body area from layout */
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+
+    /* ── Top bar ── */
+    .hk-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 4px 0 16px;
+    }
+
+    .hk-h2 {
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: var(--text);
+        margin: 0 0 2px;
+    }
+
+    .hk-h2 i { color: var(--primary); margin-right: 4px; }
+
+    .hk-sub {
+        font-size: 0.78rem;
+        color: var(--text-light);
+        margin: 0;
+    }
+
+    .hk-badge {
+        flex-shrink: 0;
+        background: #fff3e0;
+        color: var(--warning);
+        border: 1px solid var(--warning);
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 3px 12px;
+        white-space: nowrap;
+        margin-top: 2px;
+    }
+
+    /* ── Center states ── */
+    .hk-center {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 16px;
+        gap: 10px;
+        color: var(--text-light);
+        text-align: center;
+    }
+
+    .hk-ok-icon { font-size: 3rem; color: var(--success); }
+
+    .hk-spin {
+        width: 34px; height: 34px;
+        border: 3px solid var(--border);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+    }
+
+    .hk-muted { font-size: 0.82rem; }
+
+    /* ── List ── */
+    .hk-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    /* ── Row item ── */
+    .hk-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--warning);
+        border-radius: var(--radius);
+        padding: 12px 14px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        transition: box-shadow 0.18s, opacity 0.2s;
+        gap: 12px;
+    }
+
+    .hk-item:hover {
+        box-shadow: 0 3px 10px rgba(0,0,0,0.09);
+    }
+
+    .hk-item.proc {
+        opacity: 0.5;
+        pointer-events: none;
+    }
+
+    /* ── Left side ── */
+    .hk-item-left {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 0;
+    }
+
+    .hk-room-id {
+        font-size: 1.35rem;
+        font-weight: 900;
+        color: var(--text);
+        line-height: 1;
+        letter-spacing: 0.5px;
+    }
+
+    .hk-room-cat {
+        font-size: 0.75rem;
+        color: var(--text-light);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* ── Right side ── */
+    .hk-item-right {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 7px;
+        flex-shrink: 0;
+    }
+
+    .hk-tag {
+        font-size: 0.65rem;
+        font-weight: 700;
+        background: #fff3e0;
+        color: var(--warning);
+        border: 1px solid rgba(245,124,0,0.3);
+        padding: 2px 8px;
+        border-radius: 20px;
+        white-space: nowrap;
+    }
+
+    /* ── Done button ── */
+    .hk-done-btn {
+        padding: 7px 16px;
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+        transition: background 0.15s, transform 0.1s;
+    }
+
+    .hk-done-btn:hover:not(:disabled) {
+        background: var(--primary-dark);
+    }
+
+    .hk-done-btn:active:not(:disabled) {
+        transform: scale(0.96);
+    }
+
+    .hk-done-btn:disabled {
+        background: var(--border);
+        color: var(--text-light);
+        cursor: not-allowed;
+    }
+
+    .hk-mini-spin {
+        display: inline-block;
+        width: 12px; height: 12px;
+        border: 2px solid rgba(255,255,255,0.3);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+    }
+
+    /* ── Toast ── */
+    .hk-toast {
+        position: fixed;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-size: 0.86rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        z-index: 9999;
+        animation: hkSlide 0.25s ease;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        white-space: nowrap;
+    }
+
+    .hk-toast.ok { background: var(--success); color: #fff; }
+    .hk-toast.err { background: var(--danger); color: #fff; }
+
+    @@keyframes hkSlide {
+        from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+        to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+</style>
+
+@code {
+    List<HousekeepingRoom> rooms = new();
+    bool isLoading = true;
+    int? processingId;
+    string? toast;
+    bool toastOk;
+    Timer? timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Refresh();
+        timer = new Timer(async _ =>
+        {
+            await Refresh();
+            await InvokeAsync(StateHasChanged);
+        }, null, 10000, 10000);
+    }
+
+    async Task Refresh()
+    {
+        isLoading = rooms.Count == 0;
+        rooms = await HkSvc.GetUncleanedRooms();
+        isLoading = false;
+    }
+
+    async Task MarkCleaned(int idPhong)
+    {
+        processingId = idPhong;
+        var ok = await HkSvc.UpdateRoomStatus(idPhong, "Trong");
+        processingId = null;
+
+        if (ok)
+        {
+            rooms.RemoveAll(r => r.IdPhong == idPhong);
+            ShowToast("Phòng đã dọn xong ✓", true);
+        }
+        else
+        {
+            ShowToast("Lỗi cập nhật, thử lại!", false);
+        }
+    }
+
+    void ShowToast(string msg, bool ok)
+    {
+        toast = msg; toastOk = ok;
+        StateHasChanged();
+        Task.Delay(2500).ContinueWith(_ =>
+        {
+            toast = null;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    public void Dispose() => timer?.Dispose();
+}
